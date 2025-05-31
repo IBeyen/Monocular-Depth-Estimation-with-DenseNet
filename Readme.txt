@@ -1,0 +1,2 @@
+This project aims to reimplement and hopefully improve upon the structures and methods used in the paper "High Qualit Monocular Depth Estimation via Transfer Learning".
+For training the NYU Depth v2 dataset will be used and can be found at https://www.kaggle.com/datasets/soumikrakshit/nyu-depth-v2.
