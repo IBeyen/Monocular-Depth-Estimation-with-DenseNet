@@ -25,6 +25,7 @@ class ShuffleColors:
         
     def __call__(self, image, depth_map):
         if np.random.rand() <= self.p:
+            """" The list of permutation below holds all permutations of the color channels except the default permutation """
             permutation = [torch.tensor([0, 2, 1]), torch.tensor([1, 0, 2]), torch.tensor([1, 2, 0]), torch.tensor([2, 0, 1]), torch.tensor([2, 1, 0])][np.random.randint(5)]
             return image[permutation, :, :], depth_map
         return image, depth_map
