@@ -20,7 +20,7 @@ class FlipImageAndMap:
        
 """ Shuffles the RGB values with probability p. """ 
 class ShuffleColors:
-    def __init__(self, p=0.5):
+    def __init__(self, p=0.25):
         self.p = p
         
     def __call__(self, image, depth_map):
