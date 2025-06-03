@@ -31,7 +31,7 @@ def L_grad(y, y_pred):
     return F.l1_loss(abs(g_x), -abs(g_y))
 
 def L_ssim(y, y_pred):
-    return (1-ssim(y, y_pred))/2
+    return torch.clamp((1-ssim(y, y_pred, data_range=100))/2, 0, 1)
 
 class Loss:
     def __init__(self, Lambda):

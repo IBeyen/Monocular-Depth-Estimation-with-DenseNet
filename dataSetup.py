@@ -2,9 +2,9 @@ import os
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
-from torchvision.transforms.functional import hflip, crop
-from torchvision.io import read_image
+from torchvision.transforms.functional import hflip, crop, to_tensor
 import numpy as np
+from PIL import Image
 
 """ Takes in PIL image or Tensor and it's corresponding depth map and horizontally flips them with probability p. """
 class FlipImageAndMap:
@@ -65,8 +65,8 @@ class NYUDataSet(Dataset):
     def __getitem__(self, idx):
         img_path = os.path.join(self.data_dir, self.data_paths.iloc[idx, 0])
         depth_map_path = os.path.join(self.data_dir, self.data_paths.iloc[idx, 1])
-        image = read_image(img_path)
-        depth_map = read_image(depth_map_path)
+        image = to_tensor(Image.open(img_path))
+        depth_map = to_tensor(Image.open(depth_map_path))
         if self.transform:
             image, depth_map = self.transform(image, depth_map)
-        return image, depth_map
+        return image.cuda(), depth_map.cuda()
