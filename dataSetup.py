@@ -69,4 +69,15 @@ class NYUDataSet(Dataset):
         depth_map = to_tensor(Image.open(depth_map_path))
         if self.transform:
             image, depth_map = self.transform(image, depth_map)
+        # if image.max() > 1:
+        #     image /= 255
+        # if depth_map.max() > 1:
+        #     depth_map /= depth_map.max()
+        return image.cuda(), depth_map.cuda()
+    
+    def get_original(self, idx):
+        img_path = os.path.join(self.data_dir, self.data_paths.iloc[idx, 0])
+        depth_map_path = os.path.join(self.data_dir, self.data_paths.iloc[idx, 1])
+        image = to_tensor(Image.open(img_path))
+        depth_map = to_tensor(Image.open(depth_map_path))
         return image.cuda(), depth_map.cuda()

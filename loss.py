@@ -17,7 +17,8 @@ def sobel(img):
     return grad_x, grad_y
 
 def L_depth(y, y_pred):
-    return F.l1_loss(y, y_pred)
+    loss = F.l1_loss(y, y_pred)
+    return loss
     
 def L_grad(y, y_pred):
     true_x_grad, true_y_grad = sobel(y)
@@ -25,13 +26,16 @@ def L_grad(y, y_pred):
     g_x = true_x_grad - pred_x_grad
     g_y = true_y_grad - pred_y_grad
     """ 
-        Since the loss is 1/n * sum(|g_x| + |g_y|) (1) and L1 loss is of the form 1/n * sum(|z_1-z_2|),
+        Since the loss is 
+        1/n * sum(|g_x| + |g_y|)       (1)
+        and L1 loss is of the form 1/n * sum(|z_1-z_2|),
         we can plug |g_x| and -|g_y| into z_1 and z_2 respectively to obtain (1)
     """
-    return F.l1_loss(abs(g_x), -abs(g_y))
-
+    loss = F.l1_loss(abs(g_x), -abs(g_y))
+    return loss
 def L_ssim(y, y_pred):
-    return torch.clamp((1-ssim(y, y_pred, data_range=100))/2, 0, 1)
+    loss = torch.clamp((1-ssim(y, y_pred, data_range=1))/2, 0, 1)
+    return loss
 
 class Loss:
     def __init__(self, Lambda):
