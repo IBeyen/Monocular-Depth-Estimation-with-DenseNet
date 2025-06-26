@@ -51,18 +51,22 @@ class Model(nn.Module):
         x = F.interpolate(x, scale_factor=2, mode="bilinear") #Upsampling 1
         x = torch.cat([x, skip4], dim=1)
         x = self.decoder_depth4(x)
+        x = F.leaky_relu(x, 0.2)
         
         x = F.interpolate(x, scale_factor=2, mode="bilinear") #Upsampling 2
         x = torch.cat([x, skip3], dim=1)
         x = self.decoder_depth3(x)
+        x = F.leaky_relu(x, 0.2)
         
         x = F.interpolate(x, scale_factor=2, mode="bilinear") #Upsampling 3
         x = torch.cat([x, skip2], dim=1)
         x = self.decoder_depth2(x)
+        x = F.leaky_relu(x, 0.2)
         
         x = F.interpolate(x, scale_factor=2, mode="bilinear") #Upsampling 4
         x = torch.cat([x, skip1], dim=1)
         x = self.decoder_depth1(x)
+        x = F.leaky_relu(x, 0.2)
         
         x = self.final_conv(x)
         

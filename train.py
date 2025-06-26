@@ -6,44 +6,40 @@ from torch.utils.tensorboard import SummaryWriter
 import torchvision
 from pytorch_msssim import ssim
 from loss import Loss
-from dataSetup import NYUDataSet, Compose, ShuffleColors, FlipImageAndMap
+from dataSetup import NYUDataSet, Compose, ShuffleColors, FlipImageAndMap, DepthClip
 from model import Model
 import time
 import os
-import matplotlib.pyplot as plt
+from imageDisplay import color_transformer
 
 BATCH_SIZE = 2
-EPOCH_START = 0
+EPOCH_START = 0 # Non-zero if loading a model that has already done some training
+EPOCH_END = 10
+LOGGING_RATE = 250
+VALIDATION_RATE = 2500
+LEARNING_RATE = 0.0001
 
-transformations = Compose([ShuffleColors(), FlipImageAndMap()])
+model_dir = "MODEL_DIRECTORY"
+
+transformations = Compose([ShuffleColors(), FlipImageAndMap(), DepthClip(0.04, 1)])
+
 train_dataset = NYUDataSet("nyu_data\\data\\nyu2_train.csv", "nyu_data", transformations)
 val_dataset = NYUDataSet("nyu_data\\data\\nyu2_val.csv", "nyu_data", transformations)
 test_dataset = NYUDataSet("nyu_data\\data\\nyu2_test.csv", "nyu_data")
 
 model = Model().cuda()
-loss_fn = Loss(1)
-optimizer = torch.optim.Adam(model.parameters(), 0.000075)
+loss_fn = Loss(0.1)
+optimizer = torch.optim.Adam(model.parameters(), LEARNING_RATE)
 
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(val_dataset)
 test_loader = DataLoader(test_dataset)
-
-model_dir = "Test_6_15_2025_1"
 
 if os.path.isdir(model_dir):
     model.load_state_dict(torch.load(os.path.join(model_dir, "model_weights.pth")))
     optimizer.load_state_dict(torch.load(os.path.join(model_dir, "optimizer_state.pth")))
 
 writer = SummaryWriter(log_dir=model_dir+"/logs")
-
-def color_transformer(tensor, cmap='inferno'):
-    tensor = tensor.squeeze(0)
-    arr = tensor.detach().cpu().numpy()
-    arr = (arr - arr.min()) / (arr.max() - arr.min() + 1e-8)  # normalize to [0,1]
-    arr_colored = plt.get_cmap(cmap)(arr)[:, :, :, :3]  # drop alpha
-    arr_colored = torch.from_numpy(arr_colored).float().cuda()
-    arr_colored = arr_colored.permute(0, 3, 1, 2)
-    return arr_colored
 
 """ Get images to save for tracking progress """
 img_0, depth_map_0 = val_dataset.get_original(0)
@@ -61,12 +57,12 @@ img_2 = img_2.unsqueeze(0)
 depth_map_2 = depth_map_2.unsqueeze(0)
 depth_map_2 = color_transformer(depth_map_2)
 
-for epoch in range(EPOCH_START, 10):
+for epoch in range(EPOCH_START, EPOCH_END):
     model.train()
     epoch_start = time.time()
     train_loss_sum = 0
     train_ssim_sum = 0
-    iter_group_start = time.time() # This variable is used to keep track of how long it takes to do 100 iterations
+    iter_group_start = time.time() # This variable is used to keep track of how long it takes to do LOGGING_RATE iterations
     for i, batch in enumerate(train_loader):
         x, y = batch
         x = x.float()
@@ -81,7 +77,7 @@ for epoch in range(EPOCH_START, 10):
         loss = loss_fn(y_true, y_pred)
 
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.75)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
         optimizer.step()
         
         train_loss_sum += loss.detach()
@@ -94,16 +90,16 @@ for epoch in range(EPOCH_START, 10):
         
         """ Begin logging section """
         
-        if i % 250 == 0 and i != 0:
-            writer.add_scalar("Training Loss over iteration", train_loss_sum/250, epoch*len(train_loader) + i)
-            writer.add_scalar("Training SSIM", train_ssim_sum/250, epoch*len(train_loader) + i)
+        if i % LOGGING_RATE == 0 and i != 0:
+            writer.add_scalar("Training Loss over iteration", train_loss_sum/LOGGING_RATE, epoch*len(train_loader) + i)
+            writer.add_scalar("Training SSIM", train_ssim_sum/LOGGING_RATE, epoch*len(train_loader) + i)
             train_loss_sum = 0
             train_ssim_sum = 0
             """ Save time """
-            writer.add_scalar("Time it took to run last 250 iterations (s)", time.time()-iter_group_start, epoch*len(train_loader) + i)
+            writer.add_scalar(f"Time it took to run last {LOGGING_RATE} iterations (s)", time.time()-iter_group_start, epoch*len(train_loader) + i)
             iter_group_start = time.time()
             writer.flush()
-        if i % 2500 == 0:
+        if i % VALIDATION_RATE == 0:
             model.eval()
             val_loss_sum = 0
             val_ssim_sum = 0
@@ -162,33 +158,5 @@ for epoch in range(EPOCH_START, 10):
     epoch_end = time.time()
     writer.add_scalar("Time taken for epoch", (epoch_end-epoch_start)/60**2, epoch+1)
     writer.flush()
-    
-model.eval()
-test_loss_sum = 0
-test_ssim_sum = 0
-for test_batch in test_loader:
-    x, y = test_batch
-    x = x.float()
-    y = y.float()
-    
-    y_pred = model.forward(x)
-    y_pred = F.interpolate(y_pred, scale_factor=2)
-    
-    # y_true = 1000/y
-    
-    loss = loss_fn(y, 10000*y_pred)
-    val_loss_sum += loss.detach()
-    
-    val_ssim_sum += ssim(y, 10000*y_pred, size_average=True, data_range=1).detach()
-    
-    del x
-    del y
-    # del y_true
-    del y_pred
-    
-test_loss_avg = val_loss_sum / len(test_dataset)
-writer.add_scalar("Test Loss", test_loss_avg)
-test_ssim_avg = val_ssim_sum / len(test_dataset)
-writer.add_scalar("Test SSIM", test_ssim_avg)
     
 writer.close()

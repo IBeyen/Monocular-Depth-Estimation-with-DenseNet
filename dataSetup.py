@@ -5,6 +5,7 @@ from torch.utils.data import Dataset
 from torchvision.transforms.functional import hflip, crop, to_tensor
 import numpy as np
 from PIL import Image
+import re
 
 """ Takes in PIL image or Tensor and it's corresponding depth map and horizontally flips them with probability p. """
 class FlipImageAndMap:
@@ -41,7 +42,26 @@ class RandomCrop:
         cropped_image = crop(image, top, left, self.size[0], self.size[1])
         cropped_depth_map = crop(depth_map, top, left, self.size[0], self.size[1])
         return cropped_image, cropped_depth_map
-    
+ 
+class ScaleValues:
+    def __init__(self, image_scale=1, depth_scale=1):
+        self.image_scale = image_scale
+        self.depth_scale = depth_scale
+        
+    def __call__(self, image, depth_map):
+        return image*self.image_scale, depth_map*self.depth_scale
+
+class DepthClip:
+    def __init__(self, lower, upper):
+        self.lower = lower
+        self.upper = upper
+        
+    def __call__(self, image, depth_map):
+        new_depth_map = torch.clone(depth_map)
+        new_depth_map[new_depth_map > self.upper] = self.upper
+        new_depth_map[new_depth_map < self.lower] = self.lower
+        return image, new_depth_map
+        
 """" A custom version of torch's Compose that takes two inputs """
 class Compose:
     def __init__(self, transformations):
@@ -55,7 +75,7 @@ class Compose:
 
 class NYUDataSet(Dataset):
     def __init__(self, data_paths, data_dir, transform=None):
-        self.data_paths = pd.read_csv(data_paths)
+        self.data_paths = pd.read_csv(data_paths, header=None)
         self.data_dir = data_dir
         self.transform = transform
         
@@ -81,3 +101,11 @@ class NYUDataSet(Dataset):
         image = to_tensor(Image.open(img_path))
         depth_map = to_tensor(Image.open(depth_map_path))
         return image.cuda(), depth_map.cuda()
+    
+    def get_name(self, idx):
+        name = None
+        string = self.data_paths.iloc[idx, 0]
+        found = re.search("data\/nyu2_.*/([a-z].*)/([0-9]*).jpg", string)
+        if found:
+            name = found.group(1) + "_" + found.group(2)
+        return name
